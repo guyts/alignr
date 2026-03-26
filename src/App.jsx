@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as sync from "./sync.js";
+import { openPhotoDB } from "./photoDB.js";
+import PhotoCapture from "./PhotoCapture.jsx";
+import PhotoTimeline from "./PhotoTimeline.jsx";
 
 const STORAGE_KEY = "invisalign-tracker-v1";
 const MS_PER_HOUR = 3600000;
@@ -83,6 +86,12 @@ const Icons = {
       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
     </svg>
   ),
+  smileLog: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+  ),
 };
 
 // --- localStorage persistence ---
@@ -106,6 +115,7 @@ const DEFAULT_STATE = {
   timerStartedAt: null,
   swapFlow: null,
   totalTrays: null,
+  photoPromptPending: false,
 };
 
 export default function App() {
@@ -124,6 +134,7 @@ export default function App() {
   const [syncMsg, setSyncMsg] = useState("");
   const tickRef = useRef(null);
   const fileInputRef = useRef(null);
+  const photoDB = useRef(null);
 
   // load state: localStorage first, then check cloud for newer data
   useEffect(() => {
@@ -152,6 +163,9 @@ export default function App() {
     }
     init();
   }, []);
+
+  // open photo DB
+  useEffect(() => { openPhotoDB().then(db => { photoDB.current = db; }); }, []);
 
   // tick
   useEffect(() => {
@@ -292,7 +306,8 @@ export default function App() {
   }
 
   function startSwapFlow() {
-    update(s => { s.swapFlow = { stage: "try", stageDate: dayKey() }; });
+    // prompt for photo first (tray is out, teeth visible) before trying the new tray
+    update(s => { s.photoPromptPending = true; s.swapFlow = { stage: "try", stageDate: dayKey() }; });
   }
   function swapFits() {
     update(s => {
@@ -505,11 +520,22 @@ export default function App() {
         </div>
       )}
 
+      {/* photo capture modal — appears when tray is out before swap */}
+      {state.photoPromptPending && (
+        <PhotoCapture
+          trayNum={state.currentTray}
+          db={photoDB.current}
+          onSaved={() => update(s => { s.photoPromptPending = false; })}
+          onSkip={() => update(s => { s.photoPromptPending = false; })}
+        />
+      )}
+
       {/* tabs */}
       <div style={styles.tabs}>
         {[
           { id: "timer", icon: Icons.timer, label: "Timer" },
           { id: "swap", icon: Icons.swap, label: "Swap" },
+          { id: "smilelog", icon: Icons.smileLog, label: "Smile Log" },
         ].map(t => (
           <button
             key={t.id}
@@ -588,6 +614,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* SMILE LOG TAB */}
+      {tab === "smilelog" && (
+        <PhotoTimeline
+          db={photoDB.current}
+          currentTray={state.currentTray}
+          onRequestPhoto={() => update(s => { s.photoPromptPending = true; })}
+        />
       )}
 
       {/* SWAP TAB */}
