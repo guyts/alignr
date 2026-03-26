@@ -13,7 +13,10 @@ const MAX_OUT_MS = 2 * MS_PER_HOUR;
 
 // --- helpers ---
 function dayKey(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 function msBetween(a, b) {
   return Math.abs(new Date(b) - new Date(a));
@@ -128,6 +131,8 @@ export default function App() {
   const [totalInput, setTotalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [editDay, setEditDay] = useState(null); // date key being edited
+  const [editDayMins, setEditDayMins] = useState("");
   const [syncEmail, setSyncEmail] = useState(sync.getSyncEmail());
   const [emailInput, setEmailInput] = useState("");
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
@@ -333,6 +338,18 @@ export default function App() {
   function cancelSwapFlow() {
     update(s => { s.swapFlow = null; });
   }
+  function openDayEdit(day) {
+    const ms = state.dailyTotals[day] || 0;
+    setEditDayMins(String(Math.round(ms / 60000)));
+    setEditDay(day);
+  }
+  function saveDayEdit() {
+    const mins = parseInt(editDayMins, 10);
+    if (!isNaN(mins) && mins >= 0) {
+      update(s => { s.dailyTotals[editDay] = mins * 60000; });
+    }
+    setEditDay(null);
+  }
   function saveTrayEdit() {
     update(s => {
       const t = parseInt(trayInput);
@@ -467,6 +484,34 @@ export default function App() {
         </div>
       )}
 
+      {/* day edit modal */}
+      {editDay && (
+        <div style={styles.modal} onClick={() => setEditDay(null)}>
+          <div style={styles.modalInner} onClick={e => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>Edit {editDay === dayKey() ? "Today" : editDay}</h3>
+            <label style={styles.label}>Total time out (minutes)</label>
+            <input
+              style={styles.input}
+              type="number"
+              min="0"
+              max="480"
+              value={editDayMins}
+              onChange={e => setEditDayMins(e.target.value)}
+              autoFocus
+            />
+            <p style={styles.dateHint}>
+              {editDay === dayKey() && state.timerRunning
+                ? "Timer is currently running — this sets the accumulated total, the active session will add on top."
+                : "Override the recorded out-of-tray time for this day."}
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button style={styles.btnPrimary} onClick={saveDayEdit}>Save</button>
+              <button style={styles.btnGhost} onClick={() => setEditDay(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* settings modal */}
       {showSettings && (
         <div style={styles.modal} onClick={() => setShowSettings(false)}>
@@ -594,7 +639,7 @@ export default function App() {
                 const pct = Math.min(totalMs / MAX_OUT_MS, 1);
                 const over = totalMs > MAX_OUT_MS;
                 return (
-                  <div key={d.date} style={styles.barCol}>
+                  <div key={d.date} style={{ ...styles.barCol, cursor: "pointer" }} onClick={() => openDayEdit(d.date)}>
                     <div style={styles.barTrack}>
                       <div style={{
                         ...styles.barFill,
