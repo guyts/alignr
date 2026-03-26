@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import * as gdrive from "./gdrive.js";
+import * as sync from "./sync.js";
 
 const STORAGE_KEY = "invisalign-tracker-v1";
 const MS_PER_HOUR = 3600000;
@@ -118,35 +118,35 @@ export default function App() {
   const [totalInput, setTotalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [driveStatus, setDriveStatus] = useState(gdrive.isConnected() ? "connected" : "disconnected");
+  const [syncEmail, setSyncEmail] = useState(sync.getSyncEmail());
+  const [emailInput, setEmailInput] = useState("");
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
   const [syncMsg, setSyncMsg] = useState("");
   const tickRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // load state: localStorage first, then check Drive for newer backup
+  // load state: localStorage first, then check cloud for newer data
   useEffect(() => {
     async function init() {
       const local = loadLocal() || { ...DEFAULT_STATE };
       setState(local);
       setLoading(false);
 
-      if (gdrive.isConnected()) {
+      if (sync.getSyncEmail() && sync.isConfigured()) {
         try {
-          const backup = await gdrive.downloadBackup();
-          if (backup && backup.state) {
-            // Compare: use whichever has a more recent tray or more daily data
+          const remote = await sync.downloadData();
+          if (remote?.state) {
             const localDays = Object.keys(local.dailyTotals).length;
-            const remoteDays = Object.keys(backup.state.dailyTotals || {}).length;
-            if (remoteDays > localDays || backup.state.currentTray > local.currentTray) {
-              setState(backup.state);
-              saveLocal(backup.state);
-              setSyncMsg("Restored from Drive backup");
+            const remoteDays = Object.keys(remote.state.dailyTotals || {}).length;
+            if (remoteDays > localDays || remote.state.currentTray > local.currentTray) {
+              setState(remote.state);
+              saveLocal(remote.state);
+              setSyncMsg("Restored from cloud");
               setTimeout(() => setSyncMsg(""), 3000);
             }
           }
         } catch (e) {
-          console.warn("Drive check failed:", e);
-          setDriveStatus("error");
+          console.warn("Cloud sync check failed:", e);
         }
       }
     }
@@ -163,7 +163,7 @@ export default function App() {
   useEffect(() => {
     if (state && !loading) {
       saveLocal(state);
-      gdrive.scheduleDriveSync(state);
+      sync.scheduleSync(state);
     }
   }, [state, loading]);
 
@@ -173,30 +173,48 @@ export default function App() {
     return next;
   }), []);
 
-  // --- Drive handlers ---
-  async function connectDrive() {
-    try {
-      setDriveStatus("connecting");
-      await gdrive.signIn();
-      setDriveStatus("connected");
-      if (state) await gdrive.forceDriveSync(state);
+  // --- Cloud sync handlers ---
+  async function connectEmail() {
+    const email = emailInput.trim();
+    if (!email || !email.includes("@")) return;
+    setSyncStatus("syncing");
+    setSyncMsg("Connecting...");
+    await sync.uploadData.bind(null); // ensure module loaded
+    // save email first so download can use it
+    localStorage.setItem("alignr-sync-email", email);
+    setSyncEmail(email);
+    setEmailInput("");
+    // check if cloud has data
+    const remote = await sync.downloadData();
+    if (remote?.state) {
+      const localDays = Object.keys((state?.dailyTotals) || {}).length;
+      const remoteDays = Object.keys(remote.state.dailyTotals || {}).length;
+      if (remoteDays > localDays || remote.state.currentTray > (state?.currentTray || 0)) {
+        setState(remote.state);
+        saveLocal(remote.state);
+        setSyncMsg("Loaded your cloud data!");
+      } else {
+        await sync.uploadData(state);
+        setSyncMsg("Connected & synced!");
+      }
+    } else {
+      await sync.uploadData(state);
       setSyncMsg("Connected & synced!");
-      setTimeout(() => setSyncMsg(""), 3000);
-    } catch (e) {
-      console.error("Drive connect failed:", e);
-      setDriveStatus("error");
-      setSyncMsg("Connection failed");
-      setTimeout(() => setSyncMsg(""), 3000);
     }
+    setSyncStatus("synced");
+    setTimeout(() => setSyncMsg(""), 3000);
   }
-  function disconnectDrive() {
-    gdrive.signOut();
-    setDriveStatus("disconnected");
+  function disconnectSync() {
+    sync.clearSyncEmail();
+    setSyncEmail("");
+    setSyncStatus("idle");
   }
   async function forceSyncNow() {
     if (!state) return;
+    setSyncStatus("syncing");
     setSyncMsg("Syncing...");
-    const ok = await gdrive.forceDriveSync(state);
+    const ok = await sync.uploadData(state);
+    setSyncStatus(ok ? "synced" : "error");
     setSyncMsg(ok ? "Synced!" : "Sync failed");
     setTimeout(() => setSyncMsg(""), 3000);
   }
@@ -282,7 +300,7 @@ export default function App() {
       s.trayStartDate = dayKey();
       s.swapFlow = null;
     });
-    gdrive.forceDriveSync(state);
+    sync.scheduleSync(state);
   }
   function swapDoesntFit() {
     update(s => { s.swapFlow = { stage: "wait2", stageDate: dayKey() }; });
@@ -407,7 +425,7 @@ export default function App() {
         <p style={styles.subtitle}>
           Day {daysOnTray + 1} of {TRAY_DAYS}
           {daysUntilSwap > 0 ? ` · swap in ${daysUntilSwap}d` : " · swap day!"}
-          {driveStatus === "connected" && <span style={styles.syncBadge}> · {Icons.cloudOk} synced</span>}
+          {syncEmail && syncStatus !== "error" && <span style={styles.syncBadge}> · {Icons.cloudOk} synced</span>}
         </p>
       </div>
 
@@ -440,26 +458,32 @@ export default function App() {
           <div style={styles.modalInner} onClick={e => e.stopPropagation()}>
             <h3 style={styles.modalTitle}>Settings & Backup</h3>
 
-            {/* Google Drive */}
+            {/* Cloud Sync */}
             <div style={styles.settingsSection}>
-              <h4 style={styles.settingLabel}>Google Drive Sync</h4>
-              {!gdrive.isConfigured() ? (
-                <p style={styles.settingDesc}>
-                  To enable Google Drive sync, add your Google OAuth Client ID in <code style={styles.code}>src/gdrive.js</code>. See the README for setup instructions.
-                </p>
-              ) : driveStatus === "connected" ? (
+              <h4 style={styles.settingLabel}>Cloud Sync</h4>
+              {!sync.isConfigured() ? (
+                <p style={styles.settingDesc}>Cloud sync is not configured for this deployment.</p>
+              ) : syncEmail ? (
                 <>
-                  <p style={styles.settingDesc}>Connected — auto-syncing every 30s when data changes.</p>
+                  <p style={styles.settingDesc}>Syncing as <strong style={{ color: "#e8edf5" }}>{syncEmail}</strong>. Data auto-saves every 5 seconds.</p>
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button style={styles.btnSmall} onClick={forceSyncNow}>{Icons.cloud} Sync now</button>
-                    <button style={{ ...styles.btnSmall, ...styles.btnSmallDanger }} onClick={disconnectDrive}>Disconnect</button>
+                    <button style={{ ...styles.btnSmall, ...styles.btnSmallDanger }} onClick={disconnectSync}>Sign out</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p style={styles.settingDesc}>Back up your data to Google Drive automatically.</p>
-                  <button style={styles.btnSmall} onClick={connectDrive}>
-                    {driveStatus === "connecting" ? "Connecting..." : "Connect Google Drive"}
+                  <p style={styles.settingDesc}>Enter your email to sync across devices. Same email = same data, no password needed.</p>
+                  <input
+                    style={{ ...styles.input, marginTop: 10 }}
+                    type="email"
+                    placeholder="you@example.com"
+                    value={emailInput}
+                    onChange={e => setEmailInput(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && connectEmail()}
+                  />
+                  <button style={{ ...styles.btnSmall, marginTop: 8 }} onClick={connectEmail}>
+                    {Icons.cloud} Connect
                   </button>
                 </>
               )}
