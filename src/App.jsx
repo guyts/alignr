@@ -114,6 +114,7 @@ const DEFAULT_STATE = {
   currentTray: 1,
   trayStartDate: dayKey(),
   dailyTotals: {},
+  dailyRemovals: {},
   timerRunning: false,
   timerStartedAt: null,
   swapFlow: null,
@@ -306,6 +307,8 @@ export default function App() {
       } else {
         s.timerRunning = true;
         s.timerStartedAt = new Date().toISOString();
+        s.dailyRemovals = s.dailyRemovals || {};
+        s.dailyRemovals[today] = (s.dailyRemovals[today] || 0) + 1;
       }
     });
   }
@@ -630,6 +633,11 @@ export default function App() {
               ? "Timer running — tap when you put the tray back in"
               : "Tap when you take the tray out to eat, drink, or brush"}
           </p>
+          {((state.dailyRemovals || {})[today] || 0) > 0 && (
+            <p style={styles.removalCount}>
+              Removed <strong>{(state.dailyRemovals || {})[today]}×</strong> today
+            </p>
+          )}
 
           <div style={styles.weekCard}>
             <h3 style={styles.weekTitle}>This week</h3>
@@ -649,6 +657,7 @@ export default function App() {
                     </div>
                     <span style={{ ...styles.barLabel, fontWeight: d.isToday ? 700 : 400, color: d.isToday ? "#5ce0d8" : "#6b7a94" }}>{d.label}</span>
                     <span style={styles.barVal}>{totalMs > 0 ? fmtShort(totalMs) : "–"}</span>
+                    <span style={styles.barRemovals}>{((state.dailyRemovals || {})[d.date] || 0) > 0 ? `${(state.dailyRemovals || {})[d.date]}×` : ""}</span>
                   </div>
                 );
               })}
@@ -866,4 +875,7 @@ const styles = {
   settingLabel: { fontSize: 14, fontWeight: 700, margin: "0 0 4px" },
   settingDesc: { fontSize: 13, color: "#6b7a94", lineHeight: 1.5, margin: 0 },
   code: { background: "#0c0f14", padding: "1px 6px", borderRadius: 4, fontSize: 12 },
+
+  removalCount: { textAlign: "center", fontSize: 13, color: "#6b7a94", margin: "-4px 0 0" },
+  barRemovals: { fontSize: 10, color: "#6b7a94", textAlign: "center", minHeight: 14, lineHeight: "14px" },
 };
