@@ -120,6 +120,9 @@ const DEFAULT_STATE = {
   swapFlow: null,
   totalTrays: null,
   photoPromptPending: false,
+  bottomTimerRunning: false,
+  bottomTimerStartedAt: null,
+  bottomDailyTotals: {},
 };
 
 export default function App() {
@@ -290,6 +293,11 @@ export default function App() {
   const todayPct = Math.min(todayTotal / MAX_OUT_MS, 1);
   const remaining = Math.max(MAX_OUT_MS - todayTotal, 0);
 
+  const bottomTodayAccumulated = (state.bottomDailyTotals || {})[today] || 0;
+  const bottomLiveExtra = state.bottomTimerRunning && state.bottomTimerStartedAt
+    ? now - new Date(state.bottomTimerStartedAt).getTime() : 0;
+  const bottomTodayTotal = bottomTodayAccumulated + bottomLiveExtra;
+
   const trayStart = new Date(state.trayStartDate);
   const daysOnTray = daysBetween(trayStart, new Date());
   const swapDue = daysOnTray >= TRAY_DAYS;
@@ -309,6 +317,22 @@ export default function App() {
         s.timerStartedAt = new Date().toISOString();
         s.dailyRemovals = s.dailyRemovals || {};
         s.dailyRemovals[today] = (s.dailyRemovals[today] || 0) + 1;
+      }
+    });
+  }
+
+  function toggleBottomTimer() {
+    update(s => {
+      if (s.bottomTimerRunning) {
+        const elapsed = Date.now() - new Date(s.bottomTimerStartedAt).getTime();
+        s.bottomDailyTotals = s.bottomDailyTotals || {};
+        s.bottomDailyTotals[today] = (s.bottomDailyTotals[today] || 0) + elapsed;
+        s.bottomTimerRunning = false;
+        s.bottomTimerStartedAt = null;
+      } else {
+        s.bottomDailyTotals = s.bottomDailyTotals || {};
+        s.bottomTimerRunning = true;
+        s.bottomTimerStartedAt = new Date().toISOString();
       }
     });
   }
@@ -667,6 +691,48 @@ export default function App() {
               <div style={styles.legendItem}><div style={{ ...styles.legendDot, background: "#f06868" }} /> Over 2h</div>
             </div>
           </div>
+
+          {/* bottom tray section */}
+          <div style={styles.bottomCard}>
+            <div style={styles.bottomCardHeader}>
+              <h3 style={styles.bottomTitle}>Bottom tray</h3>
+              <span style={styles.bottomToday}>
+                {bottomTodayTotal > 0 ? fmtShort(bottomTodayTotal) + " in today" : "not tracked today"}
+              </span>
+            </div>
+            <div style={styles.weekBars}>
+              {weekDays.map(d => {
+                const ms = d.isToday ? bottomTodayTotal : ((state.bottomDailyTotals || {})[d.date] || 0);
+                const pct = Math.min(ms / (22 * MS_PER_HOUR), 1);
+                return (
+                  <div key={d.date} style={styles.barCol}>
+                    <div style={{ ...styles.barTrack, height: 42 }}>
+                      <div style={{
+                        ...styles.barFill,
+                        height: `${Math.max(pct * 100, ms > 0 ? 4 : 0)}%`,
+                        background: d.isToday
+                          ? (state.bottomTimerRunning ? "#7bb3f0" : "#4a82c4")
+                          : "#2a4a72",
+                      }} />
+                    </div>
+                    <span style={{ ...styles.barLabel, fontWeight: d.isToday ? 700 : 400, color: d.isToday ? "#7bb3f0" : "#6b7a94" }}>{d.label}</span>
+                    <span style={styles.barVal}>{ms > 0 ? fmtShort(ms) : "–"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              style={state.bottomTimerRunning ? styles.bottomBtnActive : styles.bottomBtn}
+              onClick={toggleBottomTimer}
+            >
+              {state.bottomTimerRunning ? "Bottom tray out ✓" : "Bottom tray in"}
+            </button>
+            <p style={{ ...styles.hint, margin: "8px 0 0", fontSize: 12 }}>
+              {state.bottomTimerRunning
+                ? "Counting time in — tap when you take the bottom tray out"
+                : "Tap when you put the bottom tray back in"}
+            </p>
+          </div>
         </div>
       )}
 
@@ -878,4 +944,19 @@ const styles = {
 
   removalCount: { textAlign: "center", fontSize: 13, color: "#6b7a94", margin: "-4px 0 0" },
   barRemovals: { fontSize: 10, color: "#6b7a94", textAlign: "center", minHeight: 14, lineHeight: "14px" },
+
+  bottomCard: { background: "#0f1620", border: "1px solid #1a2235", borderRadius: 16, padding: "14px 16px 16px", marginTop: 10 },
+  bottomCardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  bottomTitle: { margin: 0, fontSize: 13, fontWeight: 700, color: "#6b7a94", textTransform: "uppercase", letterSpacing: "0.06em" },
+  bottomToday: { fontSize: 12, color: "#4a82c4", fontWeight: 500 },
+  bottomBtn: {
+    width: "100%", marginTop: 12, padding: "12px 0", borderRadius: 12,
+    border: "1.5px solid #2a4a72", background: "rgba(74,130,196,0.1)",
+    color: "#7bb3f0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
+  bottomBtnActive: {
+    width: "100%", marginTop: 12, padding: "12px 0", borderRadius: 12,
+    border: "1.5px solid #7bb3f0", background: "#7bb3f0",
+    color: "#0c0f14", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
 };
