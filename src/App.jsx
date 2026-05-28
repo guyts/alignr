@@ -3,6 +3,7 @@ import * as sync from "./sync.js";
 import { openPhotoDB } from "./photoDB.js";
 import PhotoCapture from "./PhotoCapture.jsx";
 import PhotoTimeline from "./PhotoTimeline.jsx";
+import Analytics from "./Analytics.jsx";
 
 const STORAGE_KEY = "invisalign-tracker-v1";
 const MS_PER_HOUR = 3600000;
@@ -93,6 +94,11 @@ const Icons = {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
       <circle cx="12" cy="13" r="4"/>
+    </svg>
+  ),
+  analytics: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
   ),
 };
@@ -608,6 +614,7 @@ export default function App() {
           { id: "timer", icon: Icons.timer, label: "Timer" },
           { id: "swap", icon: Icons.swap, label: "Swap" },
           { id: "smilelog", icon: Icons.smileLog, label: "Smile Log" },
+          { id: "analytics", icon: Icons.analytics, label: "Analytics" },
         ].map(t => (
           <button
             key={t.id}
@@ -735,6 +742,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ANALYTICS TAB */}
+      {tab === "analytics" && <Analytics state={state} />}
 
       {/* SMILE LOG TAB */}
       {tab === "smilelog" && (
