@@ -46,12 +46,12 @@ function addDays(date, n) {
 // --- icons ---
 const Icons = {
   timer: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6"/><path d="M22 6l-3-3"/><path d="M12 5V2"/>
     </svg>
   ),
   swap: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
     </svg>
   ),
@@ -91,13 +91,13 @@ const Icons = {
     </svg>
   ),
   smileLog: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
       <circle cx="12" cy="13" r="4"/>
     </svg>
   ),
   analytics: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
   ),
@@ -846,11 +846,11 @@ const styles = {
     animation: "fadeIn 0.2s ease",
   },
 
-  tabs: { display: "flex", padding: "0 16px", gap: 6, marginTop: 8 },
+  tabs: { display: "flex", padding: "0 10px", gap: 4, marginTop: 8 },
   tab: {
-    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-    padding: "11px 0", borderRadius: 12, border: "none", background: "transparent",
-    color: "#6b7a94", fontSize: 14, fontWeight: 600, cursor: "pointer",
+    flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+    padding: "8px 0 9px", borderRadius: 12, border: "none", background: "transparent",
+    color: "#6b7a94", fontSize: 11, fontWeight: 600, cursor: "pointer",
     fontFamily: "inherit", position: "relative", transition: "all 0.2s",
   },
   tabActive: { background: "#161b24", color: "#5ce0d8" },
